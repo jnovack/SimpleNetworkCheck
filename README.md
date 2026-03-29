@@ -79,6 +79,9 @@ This repo includes a GitHub Actions workflow at `.github/workflows/build-macos.y
     - `Simple Network Check.zip`
     - `Simple Network Check.dmg`
 - On tag pushes like `v1.0.0`, it also attaches both files to a GitHub Release.
+- Versioning on tag builds:
+  - Tag `vX.Y.Z` -> app `CFBundleShortVersionString` becomes `X.Y.Z`
+  - `CFBundleVersion` uses GitHub `run_number`
 
 Where to download:
 

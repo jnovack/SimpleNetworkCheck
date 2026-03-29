@@ -10,6 +10,23 @@ BUNDLE_ID="com.boomertechsupport.parentnetworkcheck"
 MIN_MACOS="14.0"
 ICON_PATH="$ROOT_DIR/assets/SimpleNetworkCheck.icns"
 
+DEFAULT_APP_VERSION="0.1.0"
+APP_VERSION="${APP_VERSION:-}"
+BUILD_NUMBER="${BUILD_NUMBER:-1}"
+
+if [[ -z "$APP_VERSION" ]]; then
+  if GIT_TAG="$(git -C "$ROOT_DIR" describe --tags --exact-match 2>/dev/null)" && [[ "$GIT_TAG" == v* ]]; then
+    APP_VERSION="${GIT_TAG#v}"
+  else
+    APP_VERSION="$DEFAULT_APP_VERSION"
+  fi
+fi
+
+# Git tags are expected as vX.Y.Z; normalize when callers pass the raw tag.
+if [[ "$APP_VERSION" == v* ]]; then
+  APP_VERSION="${APP_VERSION#v}"
+fi
+
 APP_DIR="$DIST_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -59,9 +76,9 @@ cat > "$PLIST_PATH" <<PLIST
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0.0</string>
+  <string>$APP_VERSION</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>$BUILD_NUMBER</string>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.utilities</string>
   <key>LSMinimumSystemVersion</key>
@@ -84,3 +101,4 @@ ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "$ZIP_PATH"
 
 echo "App bundle: $APP_DIR"
 echo "Zip archive: $ZIP_PATH"
+echo "Version: $APP_VERSION ($BUILD_NUMBER)"

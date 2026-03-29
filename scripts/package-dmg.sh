@@ -9,6 +9,9 @@ APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 ZIP_PATH="$DIST_DIR/$APP_NAME.zip"
 DMG_RW="$DIST_DIR/$APP_NAME-tmp.dmg"
 DMG_FINAL="$DIST_DIR/$APP_NAME.dmg"
+
+mkdir -p "$DIST_DIR"
+
 STAGING_DIR="$(mktemp -d "$DIST_DIR/.dmg-staging.XXXXXX")"
 
 cleanup() {
