@@ -65,6 +65,12 @@ On your parents' Mac:
 2. Drag `Simple Network Check.app` onto `Applications`.
 3. Open from `Applications`.
 
+Optional helper in DMG:
+
+- Double-click `Install.command` in the DMG to:
+  - copy the app to `Applications`
+  - remove quarantine (`xattr -dr com.apple.quarantine`) from the installed app
+
 If Gatekeeper warns the first time:
 
 1. Right-click the app and choose **Open**.

@@ -37,17 +37,27 @@ ZIP_PATH="$DIST_DIR/$APP_NAME.zip"
 
 mkdir -p "$DIST_DIR"
 
-swift build -c release --product "$PRODUCT_NAME"
+# Build both Apple Silicon and Intel binaries, then merge with lipo.
+swift build -c release --arch arm64 --product "$PRODUCT_NAME"
+swift build -c release --arch x86_64 --product "$PRODUCT_NAME"
 
-if [[ ! -x "$BINARY_PATH" ]]; then
-  echo "Expected binary not found: $BINARY_PATH" >&2
+ARM_BINARY_PATH="$ROOT_DIR/.build/arm64-apple-macosx/release/$PRODUCT_NAME"
+X86_BINARY_PATH="$ROOT_DIR/.build/x86_64-apple-macosx/release/$PRODUCT_NAME"
+
+if [[ ! -x "$ARM_BINARY_PATH" ]]; then
+  echo "Expected arm64 binary not found: $ARM_BINARY_PATH" >&2
+  exit 1
+fi
+
+if [[ ! -x "$X86_BINARY_PATH" ]]; then
+  echo "Expected x86_64 binary not found: $X86_BINARY_PATH" >&2
   exit 1
 fi
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
-cp "$BINARY_PATH" "$MACOS_DIR/$PRODUCT_NAME"
+lipo -create "$ARM_BINARY_PATH" "$X86_BINARY_PATH" -output "$MACOS_DIR/$PRODUCT_NAME"
 chmod +x "$MACOS_DIR/$PRODUCT_NAME"
 
 if [[ -f "$ICON_PATH" ]]; then

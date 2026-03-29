@@ -30,6 +30,32 @@ fi
 cp -R "$APP_BUNDLE" "$STAGING_DIR/$APP_NAME.app"
 ln -s /Applications "$STAGING_DIR/Applications"
 
+cat > "$STAGING_DIR/Install.command" <<EOF
+#!/bin/bash
+set -euo pipefail
+
+APP_NAME="$APP_NAME"
+SRC_DIR="\$(cd "\$(dirname "\$0")" && pwd)"
+SRC_APP="\$SRC_DIR/\$APP_NAME.app"
+DST_APP="/Applications/\$APP_NAME.app"
+
+if [[ ! -d "\$SRC_APP" ]]; then
+  echo "Could not find \$APP_NAME.app next to this installer script."
+  exit 1
+fi
+
+echo "Installing \$APP_NAME to /Applications..."
+rm -rf "\$DST_APP"
+cp -R "\$SRC_APP" "/Applications/"
+chmod -R a+rX "\$DST_APP"
+
+echo "Removing quarantine attribute from installed app..."
+xattr -dr com.apple.quarantine "\$DST_APP" 2>/dev/null || true
+
+echo "Done. You can now open \$APP_NAME from Applications."
+EOF
+chmod +x "$STAGING_DIR/Install.command"
+
 rm -f "$DMG_RW" "$DMG_FINAL"
 
 hdiutil create \
