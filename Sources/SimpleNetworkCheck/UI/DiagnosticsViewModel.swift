@@ -47,7 +47,7 @@ final class DiagnosticsViewModel: ObservableObject {
             self.results = checkResults
             self.overallStatus = aggregateStatus(for: checkResults)
             self.lastRunDate = Date()
-            self.progressText = "Done"
+            self.progressText = ""
             self.isRunning = false
 
             let snapshot = DiagnosticsSnapshot(
