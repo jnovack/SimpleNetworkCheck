@@ -1,0 +1,46 @@
+name: Build macOS App
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Show toolchain versions
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Run tests
+        run: make test
+
+      - name: Build app package
+        run: make app
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: simple-network-check-macos
+          path: dist/Simple Network Check.zip
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Upload release asset (tag only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Simple Network Check.zip

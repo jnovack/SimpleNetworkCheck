@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:boomertechsupport}",
+            "name": "Debug SimpleNetworkCheck",
+            "target": "SimpleNetworkCheck",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug SimpleNetworkCheck"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:boomertechsupport}",
+            "name": "Release SimpleNetworkCheck",
+            "target": "SimpleNetworkCheck",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release SimpleNetworkCheck"
+        }
+    ]
+}
