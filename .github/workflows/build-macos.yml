@@ -6,7 +6,7 @@ on:
     branches:
       - main
     tags:
-      - "v*.*.*"
+      - "v*"
   pull_request:
 
 permissions:
@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Show toolchain versions
         run: |
@@ -28,19 +28,23 @@ jobs:
       - name: Run tests
         run: make test
 
-      - name: Build app package
+      - name: Build install packages
         run: make app
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v6
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: simple-network-check-macos
-          path: dist/Simple Network Check.zip
+          path: |
+            dist/Simple Network Check.zip
+            dist/Simple Network Check.dmg
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 30
 
-      - name: Upload release asset (tag only)
+      - name: Upload release assets (tag only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Simple Network Check.zip
+          files: |
+            dist/Simple Network Check.zip
+            dist/Simple Network Check.dmg

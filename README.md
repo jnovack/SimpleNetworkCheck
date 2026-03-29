@@ -47,7 +47,7 @@ swift test
 
 ## Build Clickable App
 
-Create a real `.app` bundle plus a `.zip` you can send:
+Create install packages you can send:
 
 ```bash
 make app
@@ -57,12 +57,13 @@ This generates:
 
 - `dist/Simple Network Check.app` (double-clickable app)
 - `dist/Simple Network Check.zip` (easy to AirDrop/email)
+- `dist/Simple Network Check.dmg` (drag-to-Applications installer)
 
 On your parents' Mac:
 
-1. Unzip `Simple Network Check.zip`.
-2. Drag `Simple Network Check.app` into `Applications`.
-3. Double-click to run.
+1. Open `Simple Network Check.dmg`.
+2. Drag `Simple Network Check.app` onto `Applications`.
+3. Open from `Applications`.
 
 If Gatekeeper warns the first time:
 
@@ -74,11 +75,13 @@ If Gatekeeper warns the first time:
 This repo includes a GitHub Actions workflow at `.github/workflows/build-macos.yml`.
 
 - On pushes/PRs/manual runs, it builds the app and uploads:
-  - `simple-network-check-macos` artifact containing `Simple Network Check.zip`
-- On tag pushes like `v1.0.0`, it also attaches `Simple Network Check.zip` to a GitHub Release.
+  - `simple-network-check-macos` artifact containing:
+    - `Simple Network Check.zip`
+    - `Simple Network Check.dmg`
+- On tag pushes like `v1.0.0`, it also attaches both files to a GitHub Release.
 
 Where to download:
 
 1. GitHub -> **Actions** -> open a successful **Build macOS App** run.
 2. Download artifact `simple-network-check-macos`.
-3. For tags, GitHub -> **Releases** -> download `Simple Network Check.zip`.
+3. For tags, GitHub -> **Releases** -> download `Simple Network Check.dmg`.

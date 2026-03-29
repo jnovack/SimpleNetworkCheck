@@ -4,7 +4,7 @@ test:
 	swift test
 
 app:
-	./scripts/package-app.sh
+	./scripts/package-dmg.sh
 
 clean-dist:
 	rm -rf dist
