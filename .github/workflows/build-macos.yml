@@ -39,6 +39,14 @@ jobs:
           echo "Building app version ${APP_VERSION} (${BUILD_NUMBER})"
           APP_VERSION="${APP_VERSION}" BUILD_NUMBER="${BUILD_NUMBER}" make app
 
+      - name: Verify universal app binary
+        run: |
+          BIN="dist/Simple Network Check.app/Contents/MacOS/SimpleNetworkCheck"
+          ARCH_INFO="$(lipo -info "$BIN")"
+          echo "$ARCH_INFO"
+          echo "$ARCH_INFO" | grep -q "x86_64" || (echo "Missing x86_64 slice" && exit 1)
+          echo "$ARCH_INFO" | grep -q "arm64" || (echo "Missing arm64 slice" && exit 1)
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:

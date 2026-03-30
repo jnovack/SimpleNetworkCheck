@@ -2,6 +2,11 @@
 
 A native macOS SwiftUI app for quick, parent-friendly network diagnostics.
 
+Compatibility target:
+
+- Universal app binary: `x86_64` (Intel) + `arm64` (Apple Silicon)
+- Supports Intel Sequoia 15 Macs and modern Apple Silicon Macs (including M4)
+
 ## What it checks
 
 - Wi-Fi on/off and associated SSID
