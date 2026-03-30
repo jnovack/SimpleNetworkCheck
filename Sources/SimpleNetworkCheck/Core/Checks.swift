@@ -17,48 +17,42 @@ struct WiFiAssociationCheck: DiagnosticCheck {
     let title = "Wi-Fi Connection"
 
     func run(context: DiagnosticsContext) async -> CheckResult {
+        let nativeWiFiInfo = context.wifiInfoProvider.currentInfo()
+
         let hardware = await context.commandRunner.run(Shell.networksetup, ["-listallhardwareports"])
-        guard hardware.status == 0 else {
-            return CheckResult(
-                id: id,
-                title: title,
-                status: .unknown,
-                headline: "Could not inspect Wi-Fi hardware",
-                explanation: "The app could not read network hardware information.",
-                recommendedAction: RemediationAction(label: "Open Network Settings", kind: .openNetworkSettings),
-                technicalDetails: hardware.combinedOutput
-            )
+        let wifiInterface = nativeWiFiInfo?.interface
+            ?? (hardware.status == 0 ? parseWiFiDevice(from: hardware.stdout) : nil)
+        if let wifiInterface {
+            context.state.wifiInterface = wifiInterface
         }
 
-        guard let wifiInterface = parseWiFiDevice(from: hardware.stdout) else {
-            return CheckResult(
-                id: id,
-                title: title,
-                status: .fail,
-                headline: "No Wi-Fi adapter found",
-                explanation: "Your Mac does not appear to have an active Wi-Fi interface.",
-                recommendedAction: RemediationAction(label: "Open Network Settings", kind: .openNetworkSettings),
-                technicalDetails: hardware.stdout
-            )
+        let airportInfoResult: CommandResult
+        if let airportCommand = Shell.airportCommand() {
+            airportInfoResult = await context.commandRunner.run(airportCommand, ["-I"])
+        } else {
+            airportInfoResult = CommandResult(status: -1, stdout: "", stderr: "airport tool unavailable on this macOS version")
+        }
+        let airportInfo = parseAirportInfo(from: airportInfoResult.stdout)
+
+        var isWiFiOn: Bool?
+        var powerDetails = ""
+        if let wifiInterface {
+            let power = await context.commandRunner.run(Shell.networksetup, ["-getairportpower", wifiInterface])
+            if power.status == 0 {
+                isWiFiOn = parseWiFiPower(from: power.stdout)
+                powerDetails = power.stdout.trimmed
+            } else {
+                powerDetails = power.combinedOutput
+            }
+        }
+        if isWiFiOn == nil {
+            isWiFiOn = nativeWiFiInfo?.powerOn
+        }
+        if isWiFiOn == nil {
+            isWiFiOn = airportInfo.powerOn
         }
 
-        context.state.wifiInterface = wifiInterface
-
-        let power = await context.commandRunner.run(Shell.networksetup, ["-getairportpower", wifiInterface])
-        if power.status != 0 {
-            return CheckResult(
-                id: id,
-                title: title,
-                status: .unknown,
-                headline: "Could not read Wi-Fi power state",
-                explanation: "The app could not confirm whether Wi-Fi is on.",
-                recommendedAction: RemediationAction(label: "Open Network Settings", kind: .openNetworkSettings),
-                technicalDetails: power.combinedOutput
-            )
-        }
-
-        let powerText = power.stdout.lowercased()
-        guard powerText.contains("on") else {
+        if isWiFiOn == false {
             return CheckResult(
                 id: id,
                 title: title,
@@ -66,24 +60,27 @@ struct WiFiAssociationCheck: DiagnosticCheck {
                 headline: "Wi-Fi is turned off",
                 explanation: "This Mac is not connected because Wi-Fi power is off.",
                 recommendedAction: RemediationAction(label: "Toggle Wi-Fi", kind: .toggleWiFi),
-                technicalDetails: power.stdout.trimmed
+                technicalDetails: powerDetails.isEmpty ? airportInfoResult.combinedOutput : powerDetails
             )
         }
 
-        let association = await context.commandRunner.run(Shell.networksetup, ["-getairportnetwork", wifiInterface])
-        if association.status != 0 {
-            return CheckResult(
-                id: id,
-                title: title,
-                status: .warn,
-                headline: "Wi-Fi is on, but network is unclear",
-                explanation: "Wi-Fi power is on, but network name could not be read.",
-                recommendedAction: RemediationAction(label: "Open Network Settings", kind: .openNetworkSettings),
-                technicalDetails: association.combinedOutput
-            )
+        var ssid: String?
+        var associationDetails = ""
+        if let wifiInterface {
+            let association = await context.commandRunner.run(Shell.networksetup, ["-getairportnetwork", wifiInterface])
+            associationDetails = association.combinedOutput
+            if association.status == 0 {
+                ssid = parseSSID(from: association.stdout)
+            }
+        }
+        if ssid == nil {
+            ssid = nativeWiFiInfo?.ssid
+        }
+        if ssid == nil {
+            ssid = airportInfo.ssid
         }
 
-        if let ssid = parseSSID(from: association.stdout) {
+        if let ssid {
             context.state.ssid = ssid
             return CheckResult(
                 id: id,
@@ -92,18 +89,66 @@ struct WiFiAssociationCheck: DiagnosticCheck {
                 headline: "Connected to Wi-Fi",
                 explanation: "This Mac is connected to \(ssid).",
                 recommendedAction: RemediationAction(label: "No action needed", kind: .none),
-                technicalDetails: "Interface: \(wifiInterface)\nSSID: \(ssid)"
+                technicalDetails: "Interface: \(wifiInterface ?? "unknown")\nSSID: \(ssid)"
+            )
+        }
+
+        // Some macOS versions report "not associated" even when Wi-Fi has a valid lease.
+        // Treat this as connected-but-unknown-SSID to avoid false negative user messaging.
+        if let wifiInterface {
+            let ipResult = await context.commandRunner.run(Shell.ipconfig, ["getifaddr", wifiInterface])
+            let ip = ipResult.stdout.trimmed
+            if ipResult.status == 0, !ip.isEmpty, !ip.hasPrefix("169.254."), !ip.hasPrefix("127.") {
+                context.state.localIP = ip
+                return CheckResult(
+                    id: id,
+                    title: title,
+                    status: .pass,
+                    headline: "Connected to Wi-Fi",
+                    explanation: "Wi-Fi is active with a valid address, but the network name could not be read.",
+                    recommendedAction: RemediationAction(label: "No action needed", kind: .none),
+                    technicalDetails: [
+                        "Interface: \(wifiInterface)",
+                        "IP: \(ip)",
+                        "Native SSID: \(nativeWiFiInfo?.ssid ?? "unavailable")",
+                        associationDetails,
+                        airportInfoResult.combinedOutput
+                    ]
+                    .filter { !$0.isEmpty }
+                    .joined(separator: "\n")
+                )
+            }
+        }
+
+        if wifiInterface == nil && hardware.status != 0 && airportInfoResult.status != 0 {
+            return CheckResult(
+                id: id,
+                title: title,
+                status: .unknown,
+                headline: "Could not inspect Wi-Fi hardware",
+                explanation: "The app could not read Wi-Fi adapter details.",
+                recommendedAction: RemediationAction(label: "Open Network Settings", kind: .openNetworkSettings),
+                technicalDetails: [hardware.combinedOutput, airportInfoResult.combinedOutput]
+                    .filter { !$0.isEmpty }
+                    .joined(separator: "\n")
             )
         }
 
         return CheckResult(
             id: id,
             title: title,
-            status: .fail,
-            headline: "Not connected to a Wi-Fi network",
-            explanation: "Wi-Fi is on, but no network is currently connected.",
+            status: .warn,
+            headline: "Wi-Fi network could not be confirmed",
+            explanation: "Wi-Fi appears on, but the network name could not be read. Location permission may be required.",
             recommendedAction: RemediationAction(label: "Open Network Settings", kind: .openNetworkSettings),
-            technicalDetails: association.stdout.trimmed
+            technicalDetails: [
+                "Native SSID: \(nativeWiFiInfo?.ssid ?? "unavailable")",
+                ssidPermissionHint(nativeSSID: nativeWiFiInfo?.ssid, airportStatus: airportInfoResult.status),
+                associationDetails,
+                airportInfoResult.combinedOutput
+            ]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
         )
     }
 }
@@ -378,7 +423,23 @@ struct WiFiSignalQualityCheck: DiagnosticCheck {
     let title = "Wi-Fi Signal Quality"
 
     func run(context: DiagnosticsContext) async -> CheckResult {
-        let airport = await context.commandRunner.run(Shell.airport, ["-I"])
+        if let nativeRSSI = context.wifiInfoProvider.currentInfo()?.rssi, (-100..<0).contains(nativeRSSI) {
+            return resultForRSSI(nativeRSSI)
+        }
+
+        guard let airportCommand = Shell.airportCommand() else {
+            return CheckResult(
+                id: id,
+                title: title,
+                status: .warn,
+                headline: "Signal quality unavailable",
+                explanation: "RSSI could not be read. Grant Location Services to this app in Privacy & Security.",
+                recommendedAction: RemediationAction(label: "Open Network Settings", kind: .openNetworkSettings),
+                technicalDetails: "CoreWLAN RSSI unavailable and airport tool is not present on this macOS version."
+            )
+        }
+
+        let airport = await context.commandRunner.run(airportCommand, ["-I"])
         guard airport.status == 0 else {
             return CheckResult(
                 id: id,
@@ -403,6 +464,10 @@ struct WiFiSignalQualityCheck: DiagnosticCheck {
             )
         }
 
+        return resultForRSSI(rssi)
+    }
+
+    private func resultForRSSI(_ rssi: Int) -> CheckResult {
         if rssi >= -67 {
             return CheckResult(
                 id: id,
@@ -439,9 +504,19 @@ struct WiFiSignalQualityCheck: DiagnosticCheck {
     }
 }
 
+func ssidPermissionHint(nativeSSID: String?, airportStatus: Int32) -> String {
+    guard nativeSSID == nil else { return "" }
+    if airportStatus != 0 {
+        return "Hint: SSID may be hidden by Location Services privacy. Enable Location Services for this app."
+    }
+    return ""
+}
+
 func parseWiFiDevice(from hardwarePorts: String) -> String? {
     let lines = hardwarePorts.split(separator: "\n").map(String.init)
-    for idx in lines.indices where lines[idx].contains("Hardware Port: Wi-Fi") {
+    for idx in lines.indices
+    where lines[idx].contains("Hardware Port: Wi-Fi") || lines[idx].contains("Hardware Port: AirPort")
+    {
         let searchRange = lines.index(after: idx)..<min(lines.endIndex, idx + 4)
         for j in searchRange where lines[j].contains("Device:") {
             guard let value = lines[j].split(separator: ":", maxSplits: 1).last else {
@@ -451,6 +526,40 @@ func parseWiFiDevice(from hardwarePorts: String) -> String? {
         }
     }
     return nil
+}
+
+func parseWiFiPower(from output: String) -> Bool? {
+    let text = output.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if text.hasSuffix(": on") { return true }
+    if text.hasSuffix(": off") { return false }
+    return nil
+}
+
+struct AirportInfo {
+    var ssid: String?
+    var powerOn: Bool?
+}
+
+func parseAirportInfo(from output: String) -> AirportInfo {
+    var info = AirportInfo()
+    for line in output.split(separator: "\n") {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("SSID:") {
+            let value = String(trimmed.split(separator: ":", maxSplits: 1).last ?? "").trimmed
+            if !value.isEmpty {
+                info.ssid = value
+            }
+        }
+        if trimmed.hasPrefix("AirPort:") || trimmed.hasPrefix("Wi-Fi:") {
+            let value = String(trimmed.split(separator: ":", maxSplits: 1).last ?? "").trimmed.lowercased()
+            if value == "on" {
+                info.powerOn = true
+            } else if value == "off" {
+                info.powerOn = false
+            }
+        }
+    }
+    return info
 }
 
 func parseSSID(from output: String) -> String? {

@@ -20,11 +20,17 @@ final class DiagnosticsViewModel: ObservableObject {
     init(
         commandRunner: CommandRunning = SystemCommandRunner(),
         httpChecker: HTTPChecking = URLSessionHTTPChecker(),
+        wifiInfoProvider: WiFiInfoProviding = CoreWLANWiFiInfoProvider(),
         checks: [any DiagnosticCheck] = defaultChecks()
     ) {
         let state = DiagnosticState()
         self.state = state
-        self.context = DiagnosticsContext(commandRunner: commandRunner, httpChecker: httpChecker, state: state)
+        self.context = DiagnosticsContext(
+            commandRunner: commandRunner,
+            httpChecker: httpChecker,
+            wifiInfoProvider: wifiInfoProvider,
+            state: state
+        )
         self.runner = DiagnosticsRunner(checks: checks, timeoutSeconds: 3, retries: 1)
     }
 

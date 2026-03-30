@@ -27,9 +27,27 @@ protocol HTTPChecking: Sendable {
     func check(url: URL, timeout: TimeInterval) async -> Bool
 }
 
+struct WiFiInfo: Sendable {
+    let interface: String?
+    let ssid: String?
+    let rssi: Int?
+    let powerOn: Bool?
+}
+
+protocol WiFiInfoProviding: Sendable {
+    func currentInfo() -> WiFiInfo?
+}
+
+struct NullWiFiInfoProvider: WiFiInfoProviding {
+    func currentInfo() -> WiFiInfo? {
+        nil
+    }
+}
+
 struct DiagnosticsContext: Sendable {
     let commandRunner: CommandRunning
     let httpChecker: HTTPChecking
+    let wifiInfoProvider: WiFiInfoProviding
     let state: DiagnosticState
 }
 

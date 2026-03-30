@@ -12,6 +12,35 @@ final class SimpleNetworkCheckTests: XCTestCase {
         XCTAssertEqual(parseWiFiDevice(from: sample), "en0")
     }
 
+    func testParseWiFiDeviceSupportsAirPortLabel() {
+        let sample = """
+        Hardware Port: AirPort
+        Device: en1
+        Ethernet Address: aa:bb:cc:dd:ee:ff
+        """
+
+        XCTAssertEqual(parseWiFiDevice(from: sample), "en1")
+    }
+
+    func testParseWiFiPower() {
+        XCTAssertEqual(parseWiFiPower(from: "Wi-Fi Power (en0): On"), true)
+        XCTAssertEqual(parseWiFiPower(from: "Wi-Fi Power (en0): Off"), false)
+        XCTAssertNil(parseWiFiPower(from: "unexpected"))
+    }
+
+    func testParseAirportInfo() {
+        let sample = """
+             agrCtlRSSI: -62
+             SSID: MyHomeNet
+             BSSID: aa:bb:cc:dd:ee:ff
+             AirPort: On
+        """
+
+        let info = parseAirportInfo(from: sample)
+        XCTAssertEqual(info.ssid, "MyHomeNet")
+        XCTAssertEqual(info.powerOn, true)
+    }
+
     func testParseGateway() {
         let sample = """
         route to: default
@@ -37,6 +66,7 @@ final class SimpleNetworkCheckTests: XCTestCase {
         let context = DiagnosticsContext(
             commandRunner: MockCommandRunner(),
             httpChecker: MockHTTPChecker(),
+            wifiInfoProvider: MockWiFiInfoProvider(),
             state: DiagnosticState()
         )
 
@@ -125,5 +155,11 @@ private struct MockCommandRunner: CommandRunning {
 private struct MockHTTPChecker: HTTPChecking {
     func check(url: URL, timeout: TimeInterval) async -> Bool {
         true
+    }
+}
+
+private struct MockWiFiInfoProvider: WiFiInfoProviding {
+    func currentInfo() -> WiFiInfo? {
+        nil
     }
 }
